@@ -3,4 +3,4 @@ main: me.AnFun.DRMining.Main
 version: "1.0"
 depend: []
 commands:
-  helloworld:
+  generatepickaxe:
