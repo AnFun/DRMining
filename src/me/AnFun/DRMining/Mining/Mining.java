@@ -2,25 +2,27 @@ package me.AnFun.DRMining.Mining;
 
 import me.AnFun.DRMining.Generator.Generator;
 import me.AnFun.DRMining.Main;
-import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.Sound;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Mining implements Listener {
-
     private List<Ore> oreList = new ArrayList<>();
+    private static String[] miningEnchants = new String[]{"MINING SUCCESS: ", "DURABILITY: ", "DOUBLE ORE: ", "TRIPLE ORE: ", "GEM FIND: ", "TREASURE FIND: "};
 
     public Mining() {
         new BukkitRunnable(){
@@ -37,12 +39,13 @@ public class Mining implements Listener {
         }.runTaskTimer(Main.getInstance(),5, 1);
     }
 
+
     private static class Ore {
-        Tier tier;
+        Generator.Tier tier;
         long time;
         Location location;
 
-        Ore(Tier tier, long time, Location location) {
+        Ore(Generator.Tier tier, long time, Location location) {
             this.tier = tier;
             this.time = time;
             this.location = location;
@@ -79,13 +82,12 @@ public class Mining implements Listener {
         if (level == 100) {
             return 0;
         }
-
         int prevLevel = level - 1;
         return (int) (Math.pow(prevLevel, 2) + (prevLevel * 20) + 150 + (prevLevel * 4) + getExpNeeded(prevLevel));
     }
 
     //pre: pick will always be a pick
-    private int getLevel(ItemStack pick) {
+    private static int getLevel(ItemStack pick) {
         try {
             return Integer.parseInt(ChatColor.stripColor(pick.getItemMeta().getLore().get(0).split(": ")[1].trim()));
         }
@@ -95,7 +97,7 @@ public class Mining implements Listener {
         }
     }
     //pre: pick will always be a pick
-    private int[] getExps(ItemStack pick) {
+    private static int[] getExps(ItemStack pick) {
         try {
             return new int[]{Integer.parseInt(ChatColor.stripColor(pick.getItemMeta().getLore().get(1).split("/")[0].trim())), Integer.parseInt(ChatColor.stripColor(pick.getItemMeta().getLore().get(1).split("/")[1].trim()))};
         }
@@ -105,7 +107,7 @@ public class Mining implements Listener {
         }
     }
 
-    private int oreExp(Tier tier) {
+    private int oreExp(Generator.Tier tier) {
         switch (tier) {
             case T1:
                 return Generator.generateRandom(90,125);
@@ -122,23 +124,23 @@ public class Mining implements Listener {
         }
     }
 
-    private Tier getTier(Block block) {
+    private Generator.Tier getTier(Block block) {
         switch (block.getType()){
             case GOLD_ORE:
-                return Tier.T5;
+                return Generator.Tier.T5;
             case DIAMOND_ORE:
-                return Tier.T4;
+                return Generator.Tier.T4;
             case IRON_ORE:
-                return Tier.T3;
+                return Generator.Tier.T3;
             case EMERALD_ORE:
-                return Tier.T2;
+                return Generator.Tier.T2;
             case COAL_ORE:
-                return Tier.T1;
+                return Generator.Tier.T1;
         }
         return null;
     }
 
-    private Material getOre(Tier tier) {
+    private Material getOre(Generator.Tier tier) {
         switch (tier) {
             case T1:
                 return Material.COAL_ORE;
@@ -155,7 +157,7 @@ public class Mining implements Listener {
         }
     }
 
-    private ItemStack addOre(Tier tier) {
+    private ItemStack addOre(Generator.Tier tier) {
         switch (tier) {
             case T1:
                 return Generator.generateItem(Material.COAL_ORE, ChatColor.WHITE.toString() + "Coal Ore", ChatColor.GRAY.toString() + ChatColor.ITALIC.toString() + "A chunk of coal ore.");
@@ -171,7 +173,7 @@ public class Mining implements Listener {
         return null;
     }
 
-    private long getTime(Tier tier) {
+    private long getTime(Generator.Tier tier) {
         long time = System.currentTimeMillis();
         long T1Time = 1;
         long T2Time = 2;
@@ -203,7 +205,7 @@ public class Mining implements Listener {
 
 
     private void playerOreEvent(Player player, Ore ore) {
-        Tier tier = ore.tier;
+        Generator.Tier tier = ore.tier;
         ItemStack pick = player.getInventory().getItemInMainHand();
         int oreTier = 0;
         try {
@@ -234,79 +236,263 @@ public class Mining implements Listener {
         }
 
         if (pickTier>=oreTier) {
-            player.getInventory().addItem(addOre(tier));
-            expToPlayer(player,pick,tier,pickTier,oreTier);
-            addToOreList(ore);
-            ore.location.getBlock().setType(Material.STONE);
+            miningChance(player,pick,ore,pickTier,oreTier);
         }
     }
 
     //pre pick will always be a proper pick
-    private void expToPlayer(Player player,ItemStack pick, Tier tier,int pickTier, int oreTier) {
+    private void expToPlayer(Player player, ItemStack pick, Generator.Tier tier, int pickTier, int oreTier, boolean dura) {
         int level = getLevel(pick);
         int expAdd = oreExp(tier);
-        if (pickTier>oreTier) {
-            expAdd/=2;
+        int[] exp = getExps(pick);
+        if (pickTier > oreTier) {
+            expAdd /= 2;
         }
-        if (level==100) {
+        if (level == 100) {
             return;
         }
-        int[] exp = getExps(pick);
         exp[0] += expAdd;
-        if (exp[0]>=exp[1]) {
+        if (exp[0] >= exp[1]) {
             //minexp will never be double maxexp unless the exp from ore is set to a ridiculous value. just dont do that for the love of god
-            miningDebug(player,pick,expAdd,MiningRewards.LEVEL_UP,tier);
-            exp[0]-=exp[1];
+            miningDebug(player, pick, expAdd, MiningRewards.LEVEL_UP, tier);
+            exp[0] -= exp[1];
             level++;
         }
-        pick = Generator.generatePickaxe(level,exp[0]);
-        miningDebug(player,pick,expAdd,MiningRewards.ORE_MINED,tier);
+        pick = Generator.generatePickaxe(pick,level,exp[0],dura);
         player.getInventory().setItemInMainHand(pick);
+        miningDebug(player,pick,expAdd,MiningRewards.ORE_MINED,tier);
+        miningEnchants(player,pick,level,exp[0],tier);
     }
 
 
 
     //pre: pick will be a pick
-    private void miningDebug(Player player,ItemStack pick,int expAmount, MiningRewards miningRewards,Tier tier) {
+    private void miningDebug(Player player, ItemStack pick, int amount, MiningRewards miningRewards, Generator.Tier tier) {
         switch (miningRewards) {
             case LEVEL_UP:
-                player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "         " + "PICKAXE LEVEL UP! " + ChatColor.YELLOW + ChatColor.UNDERLINE + (getLevel(pick) - 1) + ChatColor.BOLD + " -> " + ChatColor.YELLOW + ChatColor.UNDERLINE + getLevel(pick));
+                player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "         " + "PICKAXE LEVEL UP! " + ChatColor.YELLOW + ChatColor.UNDERLINE + getLevel(pick) + ChatColor.BOLD + " -> " + ChatColor.YELLOW + ChatColor.UNDERLINE + (getLevel(pick)+1));
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5F, 1F);
                 break;
             case ORE_MINED:
-                player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "          +" + ChatColor.YELLOW + expAmount + ChatColor.BOLD + " EXP" + ChatColor.YELLOW + ChatColor.GRAY + " [" + getExps(pick)[0] + ChatColor.BOLD + "/" + ChatColor.GRAY + getExps(pick)[1] + " EXP]");
+                player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "          +" + ChatColor.YELLOW + amount + ChatColor.BOLD + " EXP" + ChatColor.YELLOW + ChatColor.GRAY + " [" + getExps(pick)[0] + ChatColor.BOLD + "/" + ChatColor.GRAY + getExps(pick)[1] + " EXP]");
+                break;
+            case MINE_FAILED:
+                player.sendMessage(ChatColor.GRAY.toString() + ChatColor.ITALIC.toString() + "You fail to gather any ore.");
                 break;
             case PICK_CHANGE:
+                break;
+            case GEM_FIND:
+                player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "          FOUND " + amount + " GEM(s)" + ChatColor.YELLOW + "");
+                break;
+            case DOUBLE_ORE:
+                player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "          DOUBLE ORE DROP" + ChatColor.YELLOW + " (2x)");
+                break;
+            case TRIPLE_ORE:
+                player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "          TRIPLE ORE DROP" + ChatColor.YELLOW + " (3x)");
+                break;
+            case DURABILITY:
+                player.sendMessage(ChatColor.GREEN + "Your durability resulted in no durability lost");
+                break;
+            case MINING_SUCCESS:
+                player.sendMessage(ChatColor.GREEN + "Your mining sucess resulted in ore");
+                break;
+            case TREASURE_FIND:
                 break;
             default:
                 break;
         }
     }
 
+    private void miningChance(Player player, ItemStack pick, Ore ore, int pickTier, int oreTier) {
+        boolean success = true;
+        boolean dura = true;
+        if (getLevel(pick)<100&&pickTier==oreTier) {
+            int baseChance = 50;
+            int pickChance = baseChance + (getLevel(pick) % 20)*5;
+            System.out.println(""+pickChance/100.0);
+
+            double chance = ThreadLocalRandom.current().nextDouble();
+            double miningSuccess = getMiningEnchantValues(pick)[0]/100.0;
+            if ((pickChance/100.0) < chance) {
+                if ((pickChance/100.0)+miningSuccess>=chance) {
+                    miningDebug(player,pick,0,MiningRewards.MINING_SUCCESS,null);
+                }
+                else {
+                    success = false;
+                }
+            }
+        }
+
+        if (getMiningEnchantValues(pick)[1]/100.0 >= ThreadLocalRandom.current().nextDouble()) {
+            dura = false;
+        }
+
+        if (success) {
+            expToPlayer(player,pick,ore.tier,pickTier,oreTier,dura);
+        }
+        else {
+            miningDebug(player, null, 0, MiningRewards.MINE_FAILED,null);
+            pick = Generator.generatePickaxe(pick,getLevel(pick),getExps(pick)[0],dura);
+            player.getInventory().setItemInMainHand(pick);
+        }
+        if (!dura) miningDebug(player,null,0,MiningRewards.DURABILITY,null);
+        addToOreList(ore);
+        ore.location.getBlock().setType(Material.STONE);
+    }
+
+    public static String[] getMiningEnchantStrings() {
+        return miningEnchants;
+    }
+
+    public static int[] getMiningEnchantValues(ItemStack pick) {
+        int[] enchantValues = new int[6];
+        for (String lore : pick.getItemMeta().getLore()) {
+            for (int i = 0; i < miningEnchants.length; i++) {
+                if (lore.contains(ChatColor.stripColor(miningEnchants[i]))) {
+                    enchantValues[i] += Integer.parseInt(ChatColor.stripColor(lore.substring(0, lore.length()-1)).split(": ")[1]);
+                }
+            }
+        }
+        return enchantValues;
+    }
+
+    private void miningEnchants(Player player, ItemStack pick,int level,int exp, Generator.Tier tier) {
+        ItemStack ore = addOre(tier);
+        assert ore != null;
+        String[] enchantTypes = miningEnchants;
+        int[] enchantValues = getMiningEnchantValues(pick);
+        for (int i = 0; i < enchantTypes.length; i++) {
+            String type = enchantTypes[i];
+            int value = enchantValues[i];
+            switch (type) {
+                case "DOUBLE ORE: ":
+                    if (value>0 && value/100.0>=ThreadLocalRandom.current().nextDouble()) {
+                        ore.setAmount(2);
+                        miningDebug(player,null,0,MiningRewards.DOUBLE_ORE,null);
+                    }
+                    break;
+                case "TRIPLE ORE: ":
+                    if (value>0 && value/100.0>=ThreadLocalRandom.current().nextDouble()) {
+                        ore.setAmount(3);
+                        miningDebug(player,null,0,MiningRewards.TRIPLE_ORE,null);
+                    }
+                    break;
+                case "GEM FIND: ":
+                    if (value>0 && value/100.0>=ThreadLocalRandom.current().nextDouble()) {
+                        int gemAmount = 0;
+                        switch (tier) {
+                            case T1:
+                                gemAmount = Generator.generateRandom(10, 20);
+                                break;
+                            case T2:
+                                gemAmount = Generator.generateRandom(25, 35);
+                                break;
+                            case T3:
+                                gemAmount = Generator.generateRandom(40, 55);
+                                break;
+                            case T4:
+                                gemAmount = Generator.generateRandom(80, 100);
+                                break;
+                            case T5:
+                                gemAmount = Generator.generateRandom(140, 160);
+                                break;
+                        }
+                        miningDebug(player,null,gemAmount,MiningRewards.GEM_FIND,null);
+                        while (gemAmount > 0) {
+                            int drop = Math.min(gemAmount,64);
+                            player.getWorld().dropItem(player.getLocation(),Generator.generateGems(drop));
+                            gemAmount-=drop;
+                        }
+                    }
+                    break;
+                case "TREASURE FIND: ":
+
+                    break;
+            }
+        }
+        player.getInventory().addItem(ore);
+    }
+
     @EventHandler
     private void onBlockBreak(BlockBreakEvent event) {
         event.setCancelled(true);
-        Tier tier = getTier(event.getBlock());
+        Generator.Tier tier = getTier(event.getBlock());
         if (tier == null) {
             return;
         }
         Location location = event.getBlock().getLocation();
         long time = getTime(tier);
         Ore ore = new Ore(tier, time, location);
-
         playerOreEvent(event.getPlayer(),ore);
+    }
+
+    @EventHandler
+    public void onInteract (PlayerInteractEvent event) {
+        if (event.getAction() == Action.LEFT_CLICK_BLOCK && getTier(event.getClickedBlock()) != null) {
+            Player player = event.getPlayer();
+            player.removePotionEffect(PotionEffectType.SLOW_DIGGING);
+            player.removePotionEffect(PotionEffectType.FAST_DIGGING);
+            Block ore = event.getClickedBlock();
+            int oreTier = 0;
+            switch (ore.getType()) {
+                case GOLD_ORE:
+                    oreTier = 5;
+                    break;
+                case DIAMOND_ORE:
+                    oreTier = 4;
+                    break;
+                case IRON_ORE:
+                    oreTier = 3;
+                    break;
+                case EMERALD_ORE:
+                    oreTier = 2;
+                    break;
+                case COAL_ORE:
+                    oreTier = 1;
+                    break;
+            }
+            int pickTier = -1;
+
+            //there should never be a non lore'd pickaxe in dr
+            switch (player.getInventory().getItemInMainHand().getType()) {
+                case GOLD_PICKAXE:
+                    pickTier = 5;
+                    break;
+                case DIAMOND_PICKAXE:
+                    pickTier = 4;
+                    break;
+                case IRON_PICKAXE:
+                    pickTier = 3;
+                    break;
+                case STONE_PICKAXE:
+                    pickTier = 2;
+                    break;
+                case WOOD_PICKAXE:
+                    pickTier = 1;
+                    break;
+            }
+
+            if (pickTier != -1 && oreTier != 0 && pickTier <= oreTier) {
+                if (pickTier == oreTier && pickTier == 2) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.FAST_DIGGING, 80, 0));
+                }
+                else if (pickTier<oreTier) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 400, 0));
+                }
+                else if (pickTier != 1 && getLevel(player.getInventory().getItemInMainHand()) < 100) {
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_DIGGING, 80, 0));
+                }
+            }
+        }
     }
 
     /*---------------------------
     ENUMS
     ---------------------------*/
 
-    public enum Tier {
-        T1,T2,T3,T4,T5
-    }
 
     private enum MiningRewards {
-        LEVEL_UP,ORE_MINED,PICK_CHANGE
+        LEVEL_UP,ORE_MINED,MINE_FAILED,PICK_CHANGE,DOUBLE_ORE,TRIPLE_ORE,GEM_FIND, MINING_SUCCESS,DURABILITY,TREASURE_FIND
     }
 
 }

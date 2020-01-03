@@ -1,8 +1,13 @@
 package me.AnFun.DRMining.Commands;
 
 import me.AnFun.DRMining.Generator.Generator;
+import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.util.List;
 
 public class Commands {
 
@@ -23,10 +28,16 @@ public class Commands {
                     }
                     else {
                         try {
-                            player.getInventory().addItem(Generator.generatePickaxe(Integer.parseInt(args[0]),0));
+                            ItemStack pick = Generator.generatePickaxe(Integer.parseInt(args[0]),0);
+                            ItemMeta meta = pick.getItemMeta();
+                            List<String> lore = meta.getLore();
+                            lore.add(ChatColor.GRAY.toString() + "Durability: 3000 / 3000");
+                            meta.setLore(lore);
+                            pick.setItemMeta(meta);
+                            player.getInventory().addItem(pick);
                         }
                         catch (NumberFormatException e) {
-                            player.sendMessage("Error: Argument not and integer");
+                            player.sendMessage("Error: Argument not an integer");
                         }
                     }
                     break;
