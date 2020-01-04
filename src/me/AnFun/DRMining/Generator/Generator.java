@@ -2,19 +2,16 @@ package me.AnFun.DRMining.Generator;
 
 import me.AnFun.DRMining.Durability.Durability;
 import me.AnFun.DRMining.Mining.Mining;
+import me.AnFun.DRMining.Utils.ItemUtils;
 import net.minecraft.server.v1_12_R1.*;
-import org.apache.commons.lang.time.DateUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
-import org.bukkit.FireworkEffect;
-import org.bukkit.FireworkEffect.Builder;
 import org.bukkit.Material;
 import org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.Firework;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
@@ -29,7 +26,7 @@ public class Generator {
         ItemMeta meta = item.getItemMeta();
         meta.setDisplayName(name);
         meta.setLore(Arrays.asList(lore));
-        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_DESTROYS, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_UNBREAKABLE);
+        //meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_DESTROYS, ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_UNBREAKABLE);
         item.setItemMeta(meta);
         return item;
     }
@@ -45,6 +42,7 @@ public class Generator {
         ItemStack orb = new ItemStack(Material.FIREWORK_CHARGE);
         ChatColor orbChat = ChatColor.WHITE;
         Color orbColor = Color.BLACK;
+
         switch (tier) {
             case T2:
                 orbChat = ChatColor.GREEN;
@@ -63,17 +61,13 @@ public class Generator {
                 orbColor = Color.YELLOW;
                 break;
         }
+
         ItemMeta meta = orb.getItemMeta();
-        FireworkMeta fMeta = (FireworkMeta) orb.getItemMeta();
-        Builder fe = FireworkEffect.builder();
-        fe.withColor(orbColor);
-        fMeta.addEffect(fe.build());
-        orb.setItemMeta(fMeta);
         List<String> lore = new ArrayList<>();
         meta.setDisplayName(orbChat.toString() + "Orb of Alteration");
         lore.add(ChatColor.GRAY.toString() + "Place on " + orbChat.toString() + tier.toString() + ChatColor.GRAY.toString() + " equipment to " + orbChat.toString() + "randomize" + ChatColor.GRAY.toString() + " all bonus stats.");
-        orb.setItemMeta(meta);
         meta.setLore(lore);
+        orb.setItemMeta(meta);
 
         return orb;
     }
@@ -103,7 +97,7 @@ public class Generator {
             pickaxe.addEnchantment(Enchantment.MENDING,1);
         }
         else if (level<=0) {
-            pickaxe = generateItem(Material.WOOD_PICKAXE, ChatColor.WHITE.toString() + "Novice Pickaxe", ChatColor.GRAY.toString() + "Level: " + ChatColor.WHITE.toString() + 1,ChatColor.GRAY +""+exp+" / " + Mining.getExpNeeded(1), ChatColor.GRAY.toString() + "EXP: " + ChatColor.RED.toString() + "||||||||||||||||||||||||||||||||||||||||||||||||||",ChatColor.RED.toString() + "MINING SUCCESS: 50%",ChatColor.RED.toString() + "GEM FIND: 50%",ChatColor.RED.toString() + "DOUBLE ORE: 50%", ChatColor.GRAY.toString() + ChatColor.ITALIC + "A pickaxe made out of sturdy wood.");
+            pickaxe = generateItem(Material.WOOD_PICKAXE, ChatColor.WHITE.toString() + "Novice Pickaxe", ChatColor.GRAY.toString() + "Level: " + ChatColor.WHITE.toString() + 1,ChatColor.GRAY +""+exp+" / " + Mining.getExpNeeded(1), ChatColor.GRAY.toString() + "EXP: " + ChatColor.RED.toString() + "||||||||||||||||||||||||||||||||||||||||||||||||||", ChatColor.GRAY.toString() + ChatColor.ITALIC + "A pickaxe made out of sturdy wood.");
         }
         else {
             switch (level/20) {
@@ -125,7 +119,20 @@ public class Generator {
             }
         }
 
-        return setFlags(pickaxe,getMiningTags(pickaxe),"CanDestroy");
+        pickaxe = setFlags(pickaxe,getMiningTags(pickaxe),"CanDestroy");
+        net.minecraft.server.v1_12_R1.ItemStack stack = CraftItemStack.asNMSCopy(pickaxe);
+        NBTTagCompound tag = stack.hasTag() ? stack.getTag() : new NBTTagCompound();
+        assert tag != null;
+        for (Mining.MiningEnchants m : Mining.MiningEnchants.values()) {
+            tag.set(m.toString(),new NBTTagInt(50));
+        }
+        stack.setTag(tag);
+        return CraftItemStack.asBukkitCopy(stack);
+
+    }
+
+    public static ItemStack newPickaxe(int level) {
+        
     }
 
     public static int generateRandom(int min, int max) {
@@ -173,10 +180,19 @@ public class Generator {
         return CraftItemStack.asBukkitCopy(stack);
     }
 
+    private static NBTTagCompound setFlag(NBTTagCompound tagSet, NBTTagList newTags, String key) {
+        tagSet.set(key, newTags);
+        return tagSet;
+    }
+
+    private static NBTTagCompound setFlag(NBTTagCompound tagSet, NBTTagCompound newTag, String key) {
+        tagSet.set(key, newTag);
+        return tagSet;
+    }
+
     public enum Tier {
         T1,T2,T3,T4,T5
     }
-
 
     public enum GearTypes {
         WEAPON,ARMOR

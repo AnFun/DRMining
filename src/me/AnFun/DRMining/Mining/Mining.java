@@ -254,21 +254,21 @@ public class Mining implements Listener {
         exp[0] += expAdd;
         if (exp[0] >= exp[1]) {
             //minexp will never be double maxexp unless the exp from ore is set to a ridiculous value. just dont do that for the love of god
-            miningDebug(player, pick, expAdd, MiningRewards.LEVEL_UP, tier);
+            miningDebug(player, pick, expAdd, MiningDebugValues.LEVEL_UP, tier);
             exp[0] -= exp[1];
             level++;
         }
         pick = Generator.generatePickaxe(pick,level,exp[0],dura);
         player.getInventory().setItemInMainHand(pick);
-        miningDebug(player,pick,expAdd,MiningRewards.ORE_MINED,tier);
+        miningDebug(player,pick,expAdd, MiningDebugValues.ORE_MINED,tier);
         miningEnchants(player,pick,level,exp[0],tier);
     }
 
 
 
     //pre: pick will be a pick
-    private void miningDebug(Player player, ItemStack pick, int amount, MiningRewards miningRewards, Generator.Tier tier) {
-        switch (miningRewards) {
+    private void miningDebug(Player player, ItemStack pick, int amount, MiningDebugValues miningDebugValues, Generator.Tier tier) {
+        switch (miningDebugValues) {
             case LEVEL_UP:
                 player.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "         " + "PICKAXE LEVEL UP! " + ChatColor.YELLOW + ChatColor.UNDERLINE + getLevel(pick) + ChatColor.BOLD + " -> " + ChatColor.YELLOW + ChatColor.UNDERLINE + (getLevel(pick)+1));
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5F, 1F);
@@ -315,7 +315,7 @@ public class Mining implements Listener {
             double miningSuccess = getMiningEnchantValues(pick)[0]/100.0;
             if ((pickChance/100.0) < chance) {
                 if ((pickChance/100.0)+miningSuccess>=chance) {
-                    miningDebug(player,pick,0,MiningRewards.MINING_SUCCESS,null);
+                    miningDebug(player,pick,0, MiningDebugValues.MINING_SUCCESS,null);
                 }
                 else {
                     success = false;
@@ -331,11 +331,11 @@ public class Mining implements Listener {
             expToPlayer(player,pick,ore.tier,pickTier,oreTier,dura);
         }
         else {
-            miningDebug(player, null, 0, MiningRewards.MINE_FAILED,null);
+            miningDebug(player, null, 0, MiningDebugValues.MINE_FAILED,null);
             pick = Generator.generatePickaxe(pick,getLevel(pick),getExps(pick)[0],dura);
             player.getInventory().setItemInMainHand(pick);
         }
-        if (!dura) miningDebug(player,null,0,MiningRewards.DURABILITY,null);
+        if (!dura) miningDebug(player,null,0, MiningDebugValues.DURABILITY,null);
         addToOreList(ore);
         ore.location.getBlock().setType(Material.STONE);
     }
@@ -356,6 +356,7 @@ public class Mining implements Listener {
         return enchantValues;
     }
 
+
     private void miningEnchants(Player player, ItemStack pick,int level,int exp, Generator.Tier tier) {
         ItemStack ore = addOre(tier);
         assert ore != null;
@@ -368,13 +369,13 @@ public class Mining implements Listener {
                 case "DOUBLE ORE: ":
                     if (value>0 && value/100.0>=ThreadLocalRandom.current().nextDouble()) {
                         ore.setAmount(2);
-                        miningDebug(player,null,0,MiningRewards.DOUBLE_ORE,null);
+                        miningDebug(player,null,0, MiningDebugValues.DOUBLE_ORE,null);
                     }
                     break;
                 case "TRIPLE ORE: ":
                     if (value>0 && value/100.0>=ThreadLocalRandom.current().nextDouble()) {
                         ore.setAmount(3);
-                        miningDebug(player,null,0,MiningRewards.TRIPLE_ORE,null);
+                        miningDebug(player,null,0, MiningDebugValues.TRIPLE_ORE,null);
                     }
                     break;
                 case "GEM FIND: ":
@@ -397,7 +398,7 @@ public class Mining implements Listener {
                                 gemAmount = Generator.generateRandom(140, 160);
                                 break;
                         }
-                        miningDebug(player,null,gemAmount,MiningRewards.GEM_FIND,null);
+                        miningDebug(player,null,gemAmount, MiningDebugValues.GEM_FIND,null);
                         while (gemAmount > 0) {
                             int drop = Math.min(gemAmount,64);
                             player.getWorld().dropItem(player.getLocation(),Generator.generateGems(drop));
@@ -490,9 +491,12 @@ public class Mining implements Listener {
     ENUMS
     ---------------------------*/
 
-
-    private enum MiningRewards {
+    private enum MiningDebugValues {
         LEVEL_UP,ORE_MINED,MINE_FAILED,PICK_CHANGE,DOUBLE_ORE,TRIPLE_ORE,GEM_FIND, MINING_SUCCESS,DURABILITY,TREASURE_FIND
+    }
+
+    public static enum MiningEnchants {
+        DOUBLE_ORE, TRIPLE_ORE, GEM_FIND, MINING_SUCCESS, DURABILITY, TREASURE_FIND
     }
 
 }

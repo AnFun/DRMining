@@ -35,6 +35,9 @@ public class Commands {
                             meta.setLore(lore);
                             pick.setItemMeta(meta);
                             player.getInventory().addItem(pick);
+                            for(Generator.Tier t : Generator.Tier.values()) {
+                                player.getInventory().addItem(Generator.generateOrb(t));
+                            }
                         }
                         catch (NumberFormatException e) {
                             player.sendMessage("Error: Argument not an integer");
